@@ -1,0 +1,377 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <title>Put.Io</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"> 
+  <script type="text/javascript" charset="utf-8" src="phonegap-1.0.0.js"></script>
+  
+	<link rel="stylesheet" href="jquery.mobile-1.0b2.css" />
+	<script src="jquery-min.js"></script>
+	<script src="jquery.mobile-1.0b2.min.js"></script>  
+    <script src="putio.js"></script>
+        <script src="webintent.js"></script>
+        
+  <script type="text/javascript" charset="utf-8">
+  
+     function tryIntent(theurl){
+        
+        if (!window.plugins || !window.plugins.webintent) {
+            alert('Unable to find webintent plugin');
+            return false;
+        }
+                
+        window.plugins.webintent.startActivity({
+            action: WebIntent.ACTION_VIEW,
+            url: theurl,
+            type: 'audio/*'
+        }, function(){
+        
+        }, function(args) {
+                alert(args); 
+  				alert('Failed to open URL via Android Intent');
+        });  
+     }
+  
+     function onLoad(){
+          document.addEventListener("deviceready", onDeviceReady, true);
+     }
+     function onDeviceReady(){
+          // navigator.notification.alert("PhoneGap is working");
+     }
+     
+     var api = null;
+     var api_key = '';
+     var api_secret = '';
+     
+     var progress_timeout;
+     var lastHash;
+     
+    function check_progress(){
+        progress_timeout = setTimeout(function(){
+            lastHash = window.location.hash.substring(1);
+            $('#last-hash').attr({'src': '#'+lastHash});
+            $.mobile.changePage('#timeout', {changeHash: true});
+        }, 10000);
+    }
+     
+    function fail(error) {
+        console.log(error.code);
+        alert(error.code);
+    }
+
+     
+     function doPlaylist(){
+     /* 
+        var markup = '<?xml version="1.0" encoding="UTF-8"?> '+
+        ' <playlist version="1" xmlns="http://xspf.org/ns/0/"> ' +
+        ' <trackList> ';
+        
+            for (var i = 0; i < lastItems.length; i++) {    
+               var item  = lastItems[i];
+               	if (item.getStreamUrl()){
+                	markup += '<track><title>'+item.name+'</title><location>'+item.getStreamUrl()+'</location></track>';
+				}                	
+            }
+        markup += '    </trackList> ' +
+        ' </playlist> ';
+        */
+        
+        // var markup = "#EXTM3U\n";
+        var markup = "";
+        for (var i = 0; i < lastItems.length; i++) {    
+            var item  = lastItems[i];
+            if (item.type == 'audio'){
+                markup += "#EXTINF:-1," +item.name+ " \n";
+                markup +=  item.getStreamUrl() + "\n";
+            }
+        }
+        
+        window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function (fileSystem){
+	        fileSystem.root.getFile('/sdcard/download/putio-' + window.location.hash.substring(1) + ".m3u", {create: true}, 
+	            function (fileEntry){
+	                    fileEntry.createWriter(function (writer){
+	                        writer.write(markup);             
+                            var url = fileEntry.toURI();
+                            alert(url);
+                            tryIntent(url);
+	                    }, fail);
+	            }, fail); 
+        
+        }, fail);
+		        	
+     }
+     
+     
+     
+     
+     var lastItems;
+     function getFiles(parent_id){
+        
+        if (!api){
+            return;
+        }
+        
+        check_progress();
+        
+        $.mobile.changePage('#progress', {changeHash: false});
+        // Write the list of base level items for the user
+        api.getItems(function(items) {
+            clearTimeout(progress_timeout);
+            var markup = '';
+            for (var i = 0; i < items.length; i++) {    
+               var item  = items[i];
+               
+               var fileorfolder = item.is_dir ? 'folder' : 'file';
+               var icon = "";
+               if (item.thumb_url){
+                   icon = item.thumb_url;
+               } else {
+                    icon = item.file_icon_url;
+               }
+               var imgm = '<img src="'+icon+'" align="left" style="margin:4px;" width="30" height="30">';
+               markup += '<li>'+imgm+'<a href="#'+fileorfolder+'-'+item.id+'" >'+item.name+'</a></li>';
+            }
+            
+            lastItems = items;
+            
+            markup += '<ul data-role="listview" data-inset="true" id="playlist"> '+
+                '    <li><a href="javascript:;" onclick="doPlaylist()" >Mp3 playlist</a></li> '+
+               '</ul>'
+            
+            $("#files-content").html('<ul data-role="listview" data-inset="true" id="your-files-li">' + markup +'</ul>').trigger('create');
+            $.mobile.changePage('#yourfiles', {changeHash: false});
+        }, parent_id, 2000);     
+     
+     }
+     
+     function getFile(file_id){
+        check_progress();
+        api.getItem(function(item){            
+            clearTimeout(progress_timeout);
+            $('#i-filename').html(item.name);
+            $('#i-preview-image').attr({'src': item.screenshot_url, 'width':'70%'});
+            if (item.download_url){                       
+                $('#i-download-url').attr({'href': item.download_url.replace('http://', 'http://'+api_key+':'+api_secret+'@')});
+                $('#i-download-url').show();
+            } else {
+                $('#i-download-url').hide();
+            }
+            
+            if (item.stream_url){
+                $('#i-stream-url').attr({'href': item.getStreamUrl()});
+                $('#i-stream-url').show();
+            } else {
+                $('#i-stream-url').hide();
+            }
+            
+            if (item.mp4_stream_url){
+                $('#i-mp4-url').attr({'href': item.mp4_stream_url + '/atk/' + api.access_token});
+                $('#i-mp4-url').show();
+            } else {
+                $('#i-mp4-url').hide();
+            }
+            
+            $.mobile.changePage('#file', {changeHash: false});
+        }, file_id);
+     }
+     
+     function populateDB(tx) {        
+        tx.executeSql('CREATE TABLE IF NOT EXISTS user(id unique, api_key varchar(200), api_secret varchar(200) )');
+    }
+
+    function errorCB(err) {
+        console.log("Error processing SQL: "+err.code);
+    }
+
+    function successCB() {
+        var db = window.openDatabase("Database", "1.0", "PhoneGap Demo", 200000);        
+    }
+
+    function load_user(db){
+        db.transaction(function(tx){
+            tx.executeSql('SELECT * FROM user', [], function(tx, results){
+                var len = results.rows.length;
+                console.debug(results);
+                if (len==0){
+                    console.debug('no user');
+                    $.mobile.changePage('#login');
+                } else {
+                    console.debug('found user');
+                    $.mobile.changePage('#progress');
+                    api_key = results.rows.item(0).api_key, 
+                    api_secret = results.rows.item(0).api_secret;
+                    
+                    try_login_timeout = setTimeout(function(){                       
+                        if (!api.getUserName()){
+                            alert('Sorry, api key or secret is wrong - or cant contact to putio\s api server, Please retry');                    
+                            $('#t-api-key').val(api_key);
+                            $('#t-api-secret').val(api_secret);        
+                            $.mobile.changePage('#login');
+                        } else {
+                            $.mobile.changePage('#yourfiles');
+                        }
+                    }, 2000);                                        
+                    
+                    api = new putio(api_key, api_secret);
+                }
+            }, errorCB);
+        });
+    }
+    
+    var try_login_timeout;
+    var t_api_key;
+    var t_api_secret;
+    function doLogin(){
+        $.mobile.changePage('#progress');
+        t_api_key = $('#t-api-key').val();
+        t_api_secret = $('#t-api-secret').val();
+        try {
+            
+            // there is a bug with putio apis jsonp, it just sends wrong things on login dont know why,
+            // this is a workaround
+            try_login_timeout = setTimeout(function(){                       
+                if (!api.getUserName()){
+                    alert('Sorry, api key or secret is wrong - or cant contact to putio\s api server, Please retry');                    
+                    $.mobile.changePage('#login');
+                } else {
+                    console.debug('saving user - 1');
+                    // save the user finally
+                    db.transaction(function(tx){
+                        console.debug('saving user - 2');
+                        tx.executeSql('delete from user');
+                        
+                            tx.executeSql('INSERT INTO user(id, api_key, api_secret) VALUES (1, "'+t_api_key+'", "'+t_api_secret+'")');
+                            api_key = t_api_key;
+                            api_secret = t_api_secret;
+                          console.debug('saving user - 3');
+                    }, errorCB, successCB);
+                    
+
+                    $.mobile.changePage('#yourfiles');
+                }
+            }, 1000);
+        
+            api = new putio(t_api_key, t_api_secret);
+            
+        } catch (e){
+            alert('Sorry, api key or secret is wrong');
+        }
+        
+    }
+    
+     var db;
+     $(function(){
+        // check local storage 
+        db = window.openDatabase("Database", "1.0", "Putio", 200000);
+        db.transaction(populateDB, errorCB, successCB);
+        load_user(db);
+        //        
+     });
+
+      $(window).bind('hashchange', function(){
+            var newHash = window.location.hash.substring(1);
+            if (newHash.indexOf('folder')>-1){
+                var folder_id = newHash.split('-')[1];                                
+                getFiles(folder_id);
+            } else if (newHash.indexOf('yourfiles')>-1){
+                getFiles(0);
+            } else if (newHash.indexOf('file-')>-1){
+                var file_id = newHash.split('-')[1];                                
+                getFile(file_id);
+            }
+       });                    
+     
+  </script>
+  </head>
+      <body onload="onLoad()"> 
+<!--
+	<div data-role="page" id="main">
+        <div data-role="header"><h1> Put.Io </h1></div>
+        <div data-role="content">
+               <p>
+               <ul data-role="listview" data-inset="true">
+                  <li><a href="#yourfiles">Your Files</a></li>
+                  <li><a href="index.html">Dashboard</a></li>
+                  <li><a href="index.html">Send Message</a></li>
+                  <li><a href="#login">Login</a></li>
+               </ul>
+               </p>    
+        </div>
+        <div data-role="footer"></div>
+    </div>
+    -->
+
+	<div data-role="page" id="progress">
+        <div data-role="header"><h1> In Progress </h1></div>
+        <div data-role="content">
+               <p>
+                    Wait....
+               </p>    
+        </div>
+        <div data-role="footer"></div>
+    </div>        
+    
+    
+	<div data-role="page" id="timeout">
+        <div data-role="header"><h1> Ooops </h1></div>
+        <div data-role="content">
+               <p>
+                    After 10 seconds we didn't get a reply from the api server - maybe you changed your api key ?, or you are out of wireless zone, or put.io had a hiccup or god knows what the hell has happened so here are your options <br/>
+                   <ul data-role="listview" data-inset="true">
+                      <li><a id="last-hash" href="#yourfiles">Retry again</a></li>                      
+                      <li><a href="#login">Login</a></li>                      
+                      
+                      <li><a href="#main">Main menu</a></li>
+                   </ul>                    
+                    
+                    
+               </p>    
+        </div>
+        <div data-role="footer"></div>
+    </div>      
+    
+	<div data-role="page" id="login">
+        <div data-role="header"><h1> Login </h1></div>
+        <div data-role="content">
+               <p>
+                    <form action="#" method="post"> 
+                        Api Key: <input type="text" id="t-api-key"><br/>
+                        Api Secret: <input type="text" id="t-api-secret"><br/>
+                        <input type="button" onclick="doLogin()" value="Login & Save">
+                    </form>                
+               </p>    
+        </div>
+        <div data-role="footer"></div>
+    </div>    
+    
+	<div data-role="page" id="yourfiles">
+        <div data-role="header"><h1> Your Files </h1></div>    
+        <div data-role="content" id="files-content">
+               <p>
+               <ul data-role="listview" data-inset="true" id="your-files-li">
+               </ul>
+               
+               </p>    
+               
+        </div>
+        <div data-role="footer"></div>
+    </div>
+
+	<div data-role="page" id="file">
+        <div data-role="header"><h1 id="i-filename"> filename </h1></div>    
+        <div data-role="content" id="file-content">
+               <p>
+                <img id="i-preview-image" src="">
+               </p>
+               <ul id="actions" data-role="listview">
+                    <li><a id="i-download-url" href="">Download</a></li>
+                    <li><a id="i-stream-url" href="">Stream</a></li>
+                    <li><a id="i-mp4-url" href="">Stream Mp4</a></li>                    
+                </ul>
+               
+        </div>
+        <div data-role="footer"></div>
+    </div>    
+    
+  </body>
+</html>

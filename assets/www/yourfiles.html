@@ -1,0 +1,74 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <title>Put.Io</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"> 
+  <script type="text/javascript" charset="utf-8" src="phonegap-1.0.0.js"></script>
+  
+	<link rel="stylesheet" href="jquery.mobile-1.0b2.css" />
+	<script src="jquery-min.js"></script>
+	<script src="jquery.mobile-1.0b2.min.js"></script>  
+    <script src="putio.js"></script>
+    
+  <script type="text/javascript" charset="utf-8">
+     function onLoad(){
+          document.addEventListener("deviceready", onDeviceReady, true);
+     }
+     function onDeviceReady(){
+          // navigator.notification.alert("PhoneGap is working");
+     }
+     
+     function getFiles(){
+     
+        var api = new putio('pil', '213selects565');
+
+        // Write the list of base level items for the user
+        api.getItems(function(items) {
+            var markup = '';
+            for (var i = 0; i < items.length; i++) {    
+               var item  = items[i];
+               var fileorfolder = item.is_dir ? 'folder' : 'file';
+               markup += '<li><a t="#'+fileorfolder+'-'+items[i].id+'" href="yourfiles.html?file='+item.id+'">'+items[i].name+'</a></li>';
+            }
+            $("#files-content").html('<ul data-role="listview" data-inset="true" id="your-files-li">' + markup +'</ul>').trigger('create');
+           // $("#your-files-li").trigger('refresh');
+        },0, 1000);     
+     
+     }
+     
+     $(function(){
+        getFiles();
+     });
+
+  </script>
+  </head>
+      <body onload="onLoad()"> 
+
+	<div data-role="page" id=main">
+        <div data-role="header"><h1> Put.Io </h1></div>
+        <div data-role="content">
+               <p>
+               <ul data-role="listview" data-inset="true">
+                  <li><a href="#yourfiles">Your Files</a></li>
+                  <li><a href="index.html">Dashboard</a></li>
+                  <li><a href="index.html">Send Message</a></li>
+               </ul>
+               </p>    
+        </div>
+        <div data-role="footer"></div>
+    </div>
+
+	<div data-role="page" id="yourfiles">
+        <div data-role="header"><h1> Your Files </h1></div>    
+        <div data-role="content" id="files-content">
+               <p>
+               <ul data-role="listview" data-inset="true" id="your-files-li">
+               </ul>
+               </p>    
+        </div>
+        <div data-role="footer"></div>
+    </div>
+
+    
+  </body>
+</html>
