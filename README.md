@@ -4,7 +4,7 @@ it was giving errors, anyways I wrote a simple client for Putio. Its like having
 Please remember this is not even alpha, though works for me. It only has files/folders, watch videos etc. and can create mp3 playlists but thats all 
 - no uploading, no transfers and no search yet.
 
-You can download the apk file from http://goo.gl/UmvOP
+You can download the apk file from http://goo.gl/wwlIk
 
 Just a couple of things:
 - real credits goes to flalanne for the amazing javascript api, it just works out of box, thank you. http://code.google.com/p/putio-js/ 
